@@ -1,13 +1,4 @@
 module.exports = {
     ownerId: "",
-
-
-
-
-   
-
-
-
-
 }
 
