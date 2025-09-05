@@ -4,11 +4,22 @@ const { ServerSettings } = require('../utils/db');
 async function sendModLogEmbed(client, guildId, type, data = {}) {
   try {
     const settings = await ServerSettings.findOne({ guildId });
-    if (!settings?.modChannelId) return; // Exit silently if not set
+    if (!settings?.modChannelId) {
+      console.warn(`[sendModLogEmbed] No modChannelId set for guild ${guildId}.`);
+      return;
+    }
 
-    const guild = client.guilds.cache.get(guildId) || await client.guilds.fetch(guildId);
-    const channel = guild.channels.cache.get(settings.modChannelId) || await guild.channels.fetch(settings.modChannelId);
-    if (!channel?.isTextBased()) return;
+    const guild = client.guilds.cache.get(guildId) || await client.guilds.fetch(guildId).catch(() => null);
+    if (!guild) {
+      console.warn(`[sendModLogEmbed] Guild not found: ${guildId}`);
+      return;
+    }
+
+    const channel = guild.channels.cache.get(settings.modChannelId) || await guild.channels.fetch(settings.modChannelId).catch(() => null);
+    if (!channel?.isTextBased()) {
+      console.warn(`[sendModLogEmbed] Mod channel not found or not text-based: ${settings.modChannelId} in guild ${guildId}`);
+      return;
+    }
 
     const embed = new EmbedBuilder().setTimestamp();
 
@@ -71,6 +82,7 @@ async function sendModLogEmbed(client, guildId, type, data = {}) {
         break;
 
       default:
+        console.warn(`[sendModLogEmbed] Unknown log type: ${type}`);
         return;
     }
 

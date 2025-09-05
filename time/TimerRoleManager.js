@@ -65,6 +65,9 @@ class TimerRoleManager {
       if (!member) return;
 
       if (!member.roles.cache.has(roleId)) {
+        // Wait briefly to allow audit logs to update
+        await new Promise(resolve => setTimeout(resolve, 1500));
+
         const auditLogs = await guild.fetchAuditLogs({ type: 25, limit: 5 });
         const entry = auditLogs.entries.find(e =>
           e.target.id === userId &&
@@ -93,7 +96,9 @@ class TimerRoleManager {
         }
 
         const role = guild.roles.cache.get(roleId);
-        if (role) {
+        // Check if bot can manage the role before re-adding
+        const botMember = guild.members.me;
+        if (role && botMember && botMember.permissions.has('ManageRoles') && botMember.roles.highest.position > role.position) {
           await member.roles.add(role, 'Timer still active — restoring role');
           try {
             await member.send(`You cannot remove the role **${role.name}** in **${guild.name}** while the timer is active.`);

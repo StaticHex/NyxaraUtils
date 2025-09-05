@@ -5,7 +5,7 @@ const SUPPORT_INVITE = 'https://discord.gg/aq2drsa3Uq';
 
 module.exports = {
   name: 'guildCreate',
-  async execute(guild, client) {
+  async execute(guild) { // Removed unused 'client' parameter
     const found = await ServerBlacklist.findOne({ serverId: guild.id });
     if (!found) return;
 
@@ -30,11 +30,13 @@ module.exports = {
       .setFooter({ text: `The bot will leave this server shortly.` })
       .setTimestamp();
 
+    // Try to DM the owner
     if (owner) {
       owner.send({ embeds: [embed] }).catch(() => {});
     }
 
     let sent = false;
+    // Try to send in the system channel if possible
     if (
       guild.systemChannel &&
       guild.systemChannel.permissionsFor(guild.members.me)?.has([
@@ -42,9 +44,13 @@ module.exports = {
         PermissionsBitField.Flags.EmbedLinks
       ])
     ) {
-      guild.systemChannel.send({ embeds: [embed] }).then(() => sent = true).catch(() => {});
+      try {
+        await guild.systemChannel.send({ embeds: [embed] });
+        sent = true;
+      } catch {}
     }
 
+    // Fallback: find the first text channel with permissions
     if (!sent) {
       const fallbackChannel = guild.channels.cache.find(
         c =>
@@ -58,6 +64,9 @@ module.exports = {
         fallbackChannel.send({ embeds: [embed] }).catch(() => {});
       }
     }
+
+    // Optional: Log the blacklist leave for audit
+    console.log(`[BLACKLIST] Left blacklisted server: ${guild.name} (${guild.id})`);
 
     setTimeout(() => {
       guild.leave().catch(() => {});

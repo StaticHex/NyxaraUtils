@@ -2,15 +2,16 @@ const mongoose = require('mongoose');
 
 const serverSettingsSchema = new mongoose.Schema({
   guildId: { type: String, required: true, unique: true },
-  modChannelId: { type: String, required: false },
+  modChannelId: { type: String },
   banCollectionOptIn: { type: Boolean, default: false },
   autoAction: {
-    bindRoleId: { type: String, required: false },
-    checkRoleId: { type: String, required: false },
-    timeAmount: { type: Number, required: false },
-    timeUnit: { type: String, required: false },
-    action: { type: String, required: false },
-    reason: { type: String, required: false },
+    bindRoleId: { type: String },
+    checkRoleId: { type: String },
+    timeAmount: { type: Number },
+    timeUnit: { type: String },
+    action: { type: String },
+    reason: { type: String }
+    // Add default values here if needed
   }
 });
 

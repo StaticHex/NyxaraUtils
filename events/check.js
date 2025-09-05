@@ -1,4 +1,4 @@
-const { ActionRowBuilder, ButtonBuilder, ButtonStyle, ModalBuilder, TextInputBuilder, TextInputStyle, EmbedBuilder } = require('discord.js');
+const { ActionRowBuilder, ButtonBuilder, ButtonStyle, ModalBuilder, TextInputBuilder, TextInputStyle, EmbedBuilder, PermissionsBitField } = require('discord.js');
 const { ServerSettings } = require('../utils/db');
 
 function convertToMs(timeAmount, timeUnit) {
@@ -11,6 +11,7 @@ function convertToMs(timeAmount, timeUnit) {
   }
 }
 
+// NOTE: All scheduling is in-memory. If the bot restarts, all intervals are lost and will be rescheduled on startup.
 async function autoActionCheck(client) {
   try {
     const settingsList = await ServerSettings.find({ 'autoAction.bindRoleId': { $exists: true } });
@@ -50,6 +51,7 @@ async function runAutoActionForGuild(client, guildId) {
   const delayMs = convertToMs(timeAmount, timeUnit);
 
   try {
+    // For large servers, this may be slow. Consider using role member listing endpoints if available.
     await guild.members.fetch().catch(() => {});
 
     const bindRole = guild.roles.cache.get(bindRoleId);
@@ -130,6 +132,16 @@ async function runAutoActionForGuild(client, guildId) {
   }
 }
 
+// Helper for permission checks
+function hasModPermission(interaction, action) {
+  if (action === 'kick') {
+    return interaction.member.permissions.has(PermissionsBitField.Flags.KickMembers);
+  }
+  if (action === 'ban') {
+    return interaction.member.permissions.has(PermissionsBitField.Flags.BanMembers);
+  }
+  return false;
+}
 
 async function interactionHandler(interaction) {
   if (interaction.isButton()) {
@@ -147,12 +159,9 @@ async function interactionHandler(interaction) {
     }
 
     if (action === 'kick' || action === 'ban') {
-      if (
-    (action === 'kick' && !interaction.member.permissions.has('KickMembers')) ||
-    (action === 'ban' && !interaction.member.permissions.has('BanMembers'))
-  ) {
-    return interaction.reply({ content: `❌ You don’t have permission to ${action} members.`, ephemeral: true });
-  }
+      if (!hasModPermission(interaction, action)) {
+        return interaction.reply({ content: `❌ You don’t have permission to ${action} members.`, ephemeral: true });
+      }
 
       const modal = new ModalBuilder()
         .setCustomId(`autoaction_reason_${action}_${targetUserId}`)
@@ -183,7 +192,7 @@ async function interactionHandler(interaction) {
           { name: 'Created Account', value: `<t:${Math.floor(targetMember.user.createdTimestamp / 1000)}:R>`, inline: true },
           { name: 'Roles', value: targetMember.roles.cache.map(r => r.name).join(', ').slice(0, 1024) || 'None' }
         )
-        .setColor('Blue')
+        .setColor(0x5865F2)
         .setTimestamp();
 
       await interaction.reply({ embeds: [embed], ephemeral: true });

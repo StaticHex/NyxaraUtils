@@ -4,33 +4,35 @@ const { createStarlinkStatusEmbed } = require('../botstatus/StarlinkStatus');
 const persist = require('../botstatus/persist');
 
 module.exports = {
-    name: 'ready',
-    once: true,
-    async execute(client) {
-  client.timerRoleManager = new TimerRoleManager(client);
-client.timerRoleManager.loadTimers();
+  name: 'ready',
+  once: true,
+  async execute(client) {
+    client.timerRoleManager = new TimerRoleManager(client);
+    client.timerRoleManager.loadTimers();
     console.log('⏱️ Timer roles loaded.');
 
+    client.user.setPresence({
+      activities: [{
+        name: '💯your pathway to optimized server daily interactions',
+        type: ActivityType.Watching // Use a valid activity type
+      }],
+      status: 'online',
+    });
 
-            client.user.setPresence({
-                activities: [{ name: `💯your pathway to optimized server daily interactions`, type: ActivityType.Custom }],
-                status: 'online',
-              });
-              
- const guildId = '1388646102898573455';
+    const guildId = '1388646102898573455';
     const channelId = '1391870848046076087';
 
     if (typeof client.interactionCount !== 'number') client.interactionCount = 0;
 
     const guild = await client.guilds.fetch(guildId).catch(() => null);
     if (!guild) {
-      console.error('Guild not found.');
+      console.error(`Guild not found: ${guildId}`);
       return;
     }
 
     const channel = await guild.channels.fetch(channelId).catch(() => null);
     if (!channel || !channel.isTextBased()) {
-      console.error('Channel not found or not text-based.');
+      console.error(`Channel not found or not text-based: ${channelId}`);
       return;
     }
 
@@ -43,7 +45,8 @@ client.timerRoleManager.loadTimers();
           await oldMessage.edit({ embeds: [createStarlinkStatusEmbed(client)] });
           console.log('Updated existing status message.');
         }
-      } catch {
+      } catch (err) {
+        console.warn('Could not fetch or edit old status message, sending new one.');
         const newMsg = await channel.send({ embeds: [createStarlinkStatusEmbed(client)] });
         await persist.set('statusMessageId', newMsg.id);
         console.log('Sent new status message and saved ID.');

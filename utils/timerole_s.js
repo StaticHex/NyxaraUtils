@@ -9,6 +9,7 @@ const timerRoleSchema = new mongoose.Schema({
   assignerId: { type: String, required: true },
   createdAt: { type: Date, default: () => new Date(), immutable: true }, 
   removedAt: { type: Date, default: null }, 
+  removedBy: { type: String, default: null }, // Optional: track who removed the role
   active: { type: Boolean, default: true },
 });
 
