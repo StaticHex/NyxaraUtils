@@ -5,7 +5,7 @@ const SUPPORT_INVITE = 'https://discord.gg/aq2drsa3Uq';
 
 module.exports = {
   name: 'guildCreate',
-  async execute(guild, client) {
+  async execute(guild) { // Removed unused 'client' parameter
     const found = await ServerBlacklist.findOne({ serverId: guild.id });
     if (!found) return;
 
@@ -15,7 +15,7 @@ module.exports = {
     const embed = new EmbedBuilder()
       .setTitle('🚫-Blacklisted Server-🚫')
       .setColor('#ca0017')
-      .setFields(
+      .addFields(
         { name: '— Server Name', value: guild.name || 'Unknown', inline: false },
         { name: '— Reason', value: reason || 'No reason provided', inline: false },
         { name: '— Blacklisted By', value: blacklistedBy ? `<@${blacklistedBy}>` : 'Unknown', inline: true },
@@ -30,25 +30,43 @@ module.exports = {
       .setFooter({ text: `The bot will leave this server shortly.` })
       .setTimestamp();
 
+    // Try to DM the owner
     if (owner) {
       owner.send({ embeds: [embed] }).catch(() => {});
     }
 
     let sent = false;
-    if (guild.systemChannel && guild.systemChannel.permissionsFor(guild.members.me)?.has(PermissionsBitField.Flags.SendMessages)) {
-      guild.systemChannel.send({ embeds: [embed] }).then(() => sent = true).catch(() => {});
+    // Try to send in the system channel if possible
+    if (
+      guild.systemChannel &&
+      guild.systemChannel.permissionsFor(guild.members.me)?.has([
+        PermissionsBitField.Flags.SendMessages,
+        PermissionsBitField.Flags.EmbedLinks
+      ])
+    ) {
+      try {
+        await guild.systemChannel.send({ embeds: [embed] });
+        sent = true;
+      } catch {}
     }
 
+    // Fallback: find the first text channel with permissions
     if (!sent) {
       const fallbackChannel = guild.channels.cache.find(
         c =>
           c.type === ChannelType.GuildText &&
-          c.permissionsFor(guild.members.me)?.has(PermissionsBitField.Flags.SendMessages)
+          c.permissionsFor(guild.members.me)?.has([
+            PermissionsBitField.Flags.SendMessages,
+            PermissionsBitField.Flags.EmbedLinks
+          ])
       );
       if (fallbackChannel) {
         fallbackChannel.send({ embeds: [embed] }).catch(() => {});
       }
     }
+
+    // Optional: Log the blacklist leave for audit
+    console.log(`[BLACKLIST] Left blacklisted server: ${guild.name} (${guild.id})`);
 
     setTimeout(() => {
       guild.leave().catch(() => {});

@@ -1,37 +1,53 @@
 const automodRules = require('../automodRules');
 
+// In-memory tracker to avoid duplicate timeouts per member+rule
+const scheduled = new Map();
+
+async function handleAutomod(member, rules) {
+  for (const rule of rules) {
+    const hasRequired = member.roles.cache.has(rule.requiredRoleId);
+    const hasMonitored = member.roles.cache.has(rule.monitoredRoleId);
+
+    if (hasRequired && !hasMonitored) {
+      const key = `${member.id}:${rule.requiredRoleId}:${rule.monitoredRoleId}`;
+      if (scheduled.has(key)) clearTimeout(scheduled.get(key));
+
+      const timeout = setTimeout(async () => {
+        try {
+          const refreshed = await member.guild.members.fetch(member.id);
+          const nowHasMonitored = refreshed.roles.cache.has(rule.monitoredRoleId);
+          const stillHasRequired = refreshed.roles.cache.has(rule.requiredRoleId);
+
+          if (stillHasRequired && !nowHasMonitored) {
+            const roleName = refreshed.guild.roles.cache.get(rule.monitoredRoleId)?.name || `ID:${rule.monitoredRoleId}`;
+            if (rule.action === 'kick') {
+              await refreshed.kick(`Automod: did not receive role ${roleName} within timeframe.`);
+            } else if (rule.action === 'ban') {
+              await refreshed.ban({ reason: `Automod: did not receive role ${roleName} within timeframe.` });
+            } else if (rule.action === 'moderate') {
+              try {
+                await refreshed.send(`You did not receive the role ${roleName} within the required timeframe. Please contact moderation.`);
+              } catch {}
+            }
+          }
+        } catch (err) {
+          console.error(`Failed to perform automod action: ${err}`);
+        } finally {
+          scheduled.delete(key);
+        }
+      }, rule.timeframe);
+
+      scheduled.set(key, timeout);
+    }
+  }
+}
+
 module.exports = {
   name: 'guildMemberUpdate',
   async execute(oldMember, newMember) {
     const rules = automodRules.get(newMember.guild.id);
     if (!rules || rules.length === 0) return;
-
-    for (const rule of rules) {
-      const hasRequired = newMember.roles.cache.has(rule.requiredRoleId);
-      const hasMonitored = newMember.roles.cache.has(rule.monitoredRoleId);
-
-      if (hasRequired && !hasMonitored) {
-        setTimeout(async () => {
-          try {
-            const member = await newMember.guild.members.fetch(newMember.id);
-            const nowHasMonitored = member.roles.cache.has(rule.monitoredRoleId);
-            const stillHasRequired = member.roles.cache.has(rule.requiredRoleId);
-
-            if (stillHasRequired && !nowHasMonitored) {
-              if (rule.action === 'kick') {
-                await member.kick(`Automod: did not receive role ${member.guild.roles.cache.get(rule.monitoredRoleId).name} within timeframe.`);
-              } else if (rule.action === 'ban') {
-                await member.ban({ reason: `Automod: did not receive role ${member.guild.roles.cache.get(rule.monitoredRoleId).name} within timeframe.` });
-              } else if (rule.action === 'moderate') {
-                await member.send(`You did not receive the role ${member.guild.roles.cache.get(rule.monitoredRoleId).name} within the required timeframe. Please contact moderation.`);
-              }
-            }
-          } catch (err) {
-            console.error(`Failed to perform automod action: ${err}`);
-          }
-        }, rule.timeframe);
-      }
-    }
+    await handleAutomod(newMember, rules);
   }
 };
 
@@ -40,32 +56,6 @@ module.exports.guildMemberAdd = {
   async execute(member) {
     const rules = automodRules.get(member.guild.id);
     if (!rules || rules.length === 0) return;
-
-    for (const rule of rules) {
-      const hasRequired = member.roles.cache.has(rule.requiredRoleId);
-      const hasMonitored = member.roles.cache.has(rule.monitoredRoleId);
-
-      if (hasRequired && !hasMonitored) {
-        setTimeout(async () => {
-          try {
-            const refreshed = await member.guild.members.fetch(member.id);
-            const nowHasMonitored = refreshed.roles.cache.has(rule.monitoredRoleId);
-            const stillHasRequired = refreshed.roles.cache.has(rule.requiredRoleId);
-
-            if (stillHasRequired && !nowHasMonitored) {
-              if (rule.action === 'kick') {
-                await refreshed.kick(`Automod: did not receive role ${refreshed.guild.roles.cache.get(rule.monitoredRoleId).name} within timeframe.`);
-              } else if (rule.action === 'ban') {
-                await refreshed.ban({ reason: `Automod: did not receive role ${refreshed.guild.roles.cache.get(rule.monitoredRoleId).name} within timeframe.` });
-              } else if (rule.action === 'moderate') {
-                await refreshed.send(`You did not receive the role ${refreshed.guild.roles.cache.get(rule.monitoredRoleId).name} within the required timeframe. Please contact moderation.`);
-              }
-            }
-          } catch (err) {
-            console.error(`Failed to perform automod action: ${err}`);
-          }
-        }, rule.timeframe);
-      }
-    }
+    await handleAutomod(member, rules);
   }
 };

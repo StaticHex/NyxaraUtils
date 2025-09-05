@@ -1,29 +1,37 @@
-const fs = require('fs');
+const fs = require('fs').promises;
 const path = require('path');
 
 const filePath = path.resolve(__dirname, '../botstatus/persist.json');
 
-function readData() {
+async function readData() {
   try {
-    return JSON.parse(fs.readFileSync(filePath, 'utf8'));
-  } catch {
+    const content = await fs.readFile(filePath, 'utf8');
+    return JSON.parse(content);
+  } catch (err) {
+    if (err.code !== 'ENOENT') {
+      console.error('Failed to read persist.json:', err);
+    }
     return {};
   }
 }
 
-function writeData(data) {
-  fs.writeFileSync(filePath, JSON.stringify(data, null, 2));
+async function writeData(data) {
+  try {
+    await fs.writeFile(filePath, JSON.stringify(data, null, 2));
+  } catch (err) {
+    console.error('Failed to write persist.json:', err);
+  }
 }
 
 async function get(key) {
-  const data = readData();
+  const data = await readData();
   return data[key];
 }
 
 async function set(key, value) {
-  const data = readData();
+  const data = await readData();
   data[key] = value;
-  writeData(data);
+  await writeData(data);
 }
 
 module.exports = { get, set };

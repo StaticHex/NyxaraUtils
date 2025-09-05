@@ -1,6 +1,7 @@
 const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
 const ServerBlacklist = require('../../utils/blacklistserver_mongo');
 const isAdmin = require('../../utils/isAdmin');
+
 module.exports = {
   data: new SlashCommandBuilder()
     .setName('unblacklistserver')
@@ -12,30 +13,39 @@ module.exports = {
     ),
 
   async execute(interaction) {
-         const isBlacklisted = await interaction.client.checkBlacklist(interaction);
+    const isBlacklisted = await interaction.client.checkBlacklist(interaction);
     if (isBlacklisted) return;
-   if (!(await isAdmin(interaction.user.id))) {
-  return interaction.reply({ content: '❌ You don\'t have permission to use this command.', ephemeral: true });
-}
+
+    if (!(await isAdmin(interaction.user.id))) {
+      return await interaction.reply({ content: '❌ You don\'t have permission to use this command.', ephemeral: true });
+    }
 
     const serverId = interaction.options.getString('serverid');
 
-    const existing = await ServerBlacklist.findOne({ serverId });
-    if (!existing) {
-      return interaction.reply({
-        content: `✅ Server \`${serverId}\` is not on the blacklist.`,
+    try {
+      const existing = await ServerBlacklist.findOne({ serverId });
+      if (!existing) {
+        return await interaction.reply({
+          content: `✅ Server \`${serverId}\` is not on the blacklist.`,
+          ephemeral: true
+        });
+      }
+
+      await ServerBlacklist.deleteOne({ serverId });
+
+      const embed = new EmbedBuilder()
+        .setTitle('✅ Server Unblacklisted ✅')
+        .setColor(0x00FF00)
+        .setDescription(`Server ID: \`${serverId}\` has been removed from the blacklist.`)
+        .setTimestamp();
+
+      return await interaction.reply({ embeds: [embed], ephemeral: true });
+    } catch (err) {
+      console.error(err);
+      return await interaction.reply({
+        content: '❌ An error occurred while unblacklisting the server.',
         ephemeral: true
       });
     }
-
-    await ServerBlacklist.deleteOne({ serverId });
-
-    const embed = new EmbedBuilder()
-      .setTitle('✅-Server Unblacklisted-✅')
-      .setColor('Green')
-      .setDescription(`Server ID: \`${serverId}\` has been removed from the blacklist.`)
-      .setTimestamp();
-
-    return interaction.reply({ embeds: [embed], ephemeral: true });
   }
 };

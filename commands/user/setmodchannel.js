@@ -1,4 +1,4 @@
-const { SlashCommandBuilder, ChannelType } = require('discord.js');
+const { SlashCommandBuilder, ChannelType, PermissionsBitField } = require('discord.js');
 const { ServerSettings } = require('../../utils/db');
 
 module.exports = {
@@ -13,29 +13,35 @@ module.exports = {
     ),
 
   async execute(interaction) {
-     const isBlacklisted = await interaction.client.checkBlacklist(interaction);
+    const isBlacklisted = await interaction.client.checkBlacklist(interaction);
     if (isBlacklisted) return;
-     if (!interaction.member.permissions.has('Administrator') &&
-        !interaction.member.permissions.has('ManageRoles')) {
-      return interaction.reply({
+
+    if (
+      !interaction.member.permissions.has(PermissionsBitField.Flags.Administrator) &&
+      !interaction.member.permissions.has(PermissionsBitField.Flags.ManageRoles)
+    ) {
+      return await interaction.reply({
         content: '❌ You need Administrator or Manage Roles permission to use this command.',
         ephemeral: true
       });
     }
+
     const channel = interaction.options.getChannel('channel');
-    const guildId = interaction.guild.id; 
+    const guildId = interaction.guild.id;
 
     try {
-      const settings = await ServerSettings.findOneAndUpdate(
-        { guildId }, 
+      await ServerSettings.findOneAndUpdate(
+        { guildId },
         { modChannelId: channel.id },
-        { upsert: true, new: true } 
+        { upsert: true, new: true }
       );
 
-      await interaction.reply({ content: `✅ Mod alert channel set to <#${channel.id}>`, ephemeral: true });
+      return await interaction.reply({ content: `✅ Mod alert channel set to <#${channel.id}>`, ephemeral: true });
     } catch (err) {
       console.error(err);
-      await interaction.reply({ content: `❌ Failed to set channel.`, ephemeral: true });
+      if (!interaction.replied && !interaction.deferred) {
+        return await interaction.reply({ content: `❌ Failed to set channel.`, ephemeral: true });
+      }
     }
   },
 };

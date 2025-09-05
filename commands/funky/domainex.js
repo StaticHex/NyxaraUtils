@@ -5,26 +5,31 @@ module.exports = {
     .setName('domainexpansion')
     .setDescription('Ready to expand your domain! TRY ME.')
     .addIntegerOption(option =>
-      option.setName('ammount')  // <-- your preferred name
-        .setDescription('Max expansion is 60')
+      option.setName('amount')
+        .setDescription('Max expansion size is 1000')
         .setRequired(true)
         .setMinValue(1)
-        .setMaxValue(60)),
+        .setMaxValue(1000)
+    ),
 
   async execute(interaction) {
     const member = interaction.member;
-    const ammount = interaction.options.getInteger('ammount'); // <-- use ammount here too
+    const amount = interaction.options.getInteger('amount');
 
     if (!member.moderatable) {
-      return interaction.reply({ content: 'you cant expand your domain :(', ephemeral: true });
+      return interaction.reply({ content: 'You can\'t expand your domain :(', ephemeral: true });
     }
 
-    const durationMs = ammount * 60 * 1000;
+    const durationMs = amount * 60 * 1000;
 
-    await member.timeout(durationMs, `Invoked Domain Expansion: Shadow's Silence for ${ammount} minute(s)`);
+    try {
+      await member.timeout(durationMs, `Invoked Domain Expansion: Shadow's Silence for ${amount} minute(s)`);
+    } catch (err) {
+      return interaction.reply({ content: 'Failed to expand your domain. Missing permissions?', ephemeral: true });
+    }
 
     const embed = new EmbedBuilder()
-      .setColor('DarkPurple')
+      .setColor(0x6f42c1)
       .setTitle('**🌑 Domain Expansion 🌑**')
       .setDescription(
         '*“From whisper to void, I summon the dusk,*\n' +
@@ -41,21 +46,19 @@ module.exports = {
       console.warn(`Failed to DM ${member.user.tag}: ${err.message}`);
     }
 
-const replyEmbed = new EmbedBuilder()
-  .setColor('DarkPurple')
-  .setTitle('🌑 Domain Expansion 🌑')
-  .setDescription(
-    `*“From whisper to void, I summon the dusk,*\n` +
-    `*Where breath is forgotten, and time dares not trust.*\n` +
-    `*Let sound be stolen, and light retreat,*\n` +
-    `*Within my shadow, all silence meets.”*\n\n` +
-    `**🎭 Enter... *Shadow's Silence!* 🎭**\n\n` +
-    `🌑 **${interaction.user.username}**, your Domain Expansion has been unleashed... ` +
-    `Welcome to *Shadow's Silence* for **${ammount}**.`
-  );
+    const replyEmbed = new EmbedBuilder()
+      .setColor(0x6f42c1)
+      .setTitle('🌑 Domain Expansion 🌑')
+      .setDescription(
+        `*“From whisper to void, I summon the dusk,*\n` +
+        `*Where breath is forgotten, and time dares not trust.*\n` +
+        `*Let sound be stolen, and light retreat,*\n` +
+        `*Within my shadow, all silence meets.”*\n\n` +
+        `**🎭 Enter... *Shadow's Silence!* 🎭**\n\n` +
+        `🌑 **${interaction.user.username}**, your Domain Expansion has been unleashed... ` +
+        `Welcome to *Shadow's Silence* for **${amount} minute(s)**.`
+      );
 
-await interaction.reply({ embeds: [replyEmbed], ephemeral: false });
-
-
+    await interaction.reply({ embeds: [replyEmbed], ephemeral: false });
   }
 };

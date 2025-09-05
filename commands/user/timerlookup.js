@@ -21,7 +21,8 @@ module.exports = {
   async execute(interaction) {
     const target = interaction.options.getUser('user');
     const timers = await TimerRole.find({ userId: target.id }).sort({ expiresAt: 1 });
-   if (!timers.length) {
+
+    if (!timers.length) {
       return interaction.reply({
         content: `❌ ${target.tag} does not have any active timed roles.`,
         ephemeral: true
@@ -33,11 +34,6 @@ module.exports = {
       PermissionsBitField.Flags.ManageRoles,
       PermissionsBitField.Flags.ManageGuild,
     ];
-
-    const member = await interaction.guild.members.fetch(interaction.user.id);
-    const isAdmin = member.permissions.has(PermissionsBitField.Flags.Administrator);
-
-
 
     let page = 0;
 
@@ -54,11 +50,11 @@ module.exports = {
       const minutes = Math.floor((remaining % (1000 * 60 * 60)) / (1000 * 60));
 
       let embedColor = 0x57F287; // green
-if (role && role.permissions.has(dangerousPerms, true)) {
+      if (role && role.permissions.has(dangerousPerms, true)) {
         if (role.permissions.has(PermissionsBitField.Flags.Administrator)) {
           embedColor = 0xED4245; // red
         } else {
-          embedColor = 0xFEE75C; 
+          embedColor = 0xFEE75C; // yellow
         }
       }
 
@@ -66,7 +62,7 @@ if (role && role.permissions.has(dangerousPerms, true)) {
         .setTitle(`⏱️ Timer for ${target.tag}`)
         .setColor(embedColor)
         .addFields(
-          { name: 'Role Given', value: `<@&${timer.roleId}>`, inline: true },
+          { name: 'Role Given', value: role ? `<@&${timer.roleId}>` : timer.roleId, inline: true },
           { name: 'Given By', value: giver ? `${giver.user.tag}` : timer.assignerId, inline: true },
           { name: 'Reason', value: timer.reason || 'No reason provided', inline: false },
           { name: 'Time Left', value: `${months}mo ${weeks}w ${days}d ${hours}h ${minutes}m`, inline: true },
@@ -95,7 +91,7 @@ if (role && role.permissions.has(dangerousPerms, true)) {
     let message = await interaction.reply({
       embeds: [await buildEmbed(page)],
       components: [buildRow(page)],
-      ephemeral: false,
+      ephemeral: true, // Make this ephemeral for privacy
       fetchReply: true
     });
 
@@ -112,44 +108,34 @@ if (role && role.permissions.has(dangerousPerms, true)) {
       if (i.customId === 'prev' && page > 0) page--;
       if (i.customId === 'next' && page < timers.length - 1) page++;
 
-if (i.customId === 'remove') {
-    
-  const isServerOwner = i.user.id === interaction.guild.ownerId;
-  const isAdmin = buttonUser.permissions.has(PermissionsBitField.Flags.Administrator);
+      if (i.customId === 'remove') {
+        const removedTimer = timers[page];
+        const role = interaction.guild.roles.cache.get(removedTimer.roleId);
+        const member = await interaction.guild.members.fetch(removedTimer.userId).catch(() => null);
 
-  if (!isServerOwner && !isAdmin) {
-    return i.reply({ content: '❌ Only server owners or true admins can remove timers.', ephemeral: true });
-  }
+        if (member && role && member.roles.cache.has(role.id)) {
+          try {
+            await member.roles.remove(role, 'Timer manually removed by admin');
+          } catch (err) {
+            console.warn(`❌ Failed to remove role ${role.name} from ${member.user.tag}:`, err);
+          }
+        }
 
-  const removedTimer = timers[page];
+        await TimerRole.deleteOne({ _id: removedTimer._id });
+        timers.splice(page, 1);
+        if (page >= timers.length && page > 0) page--;
 
-  const role = interaction.guild.roles.cache.get(removedTimer.roleId);
-  const member = await interaction.guild.members.fetch(removedTimer.userId).catch(() => null);
+        if (timers.length === 0) {
+          collector.stop();
+          return i.update({
+            content: '✅ Timer removed and role revoked. No more timers remain.',
+            embeds: [],
+            components: []
+          });
+        }
+      }
 
-  if (member && role && member.roles.cache.has(role.id)) {
-    try {
-      await member.roles.remove(role, 'Timer manually removed by admin');
-    } catch (err) {
-      console.warn(`❌ Failed to remove role ${role.name} from ${member.user.tag}:`, err);
-    }
-  }
-
-  await TimerRole.deleteOne({ _id: removedTimer._id });
-  timers.splice(page, 1);
-  if (page >= timers.length && page > 0) page--;
-
-  if (timers.length === 0) {
-    collector.stop();
-    return i.update({
-      content: '✅ Timer removed and role revoked. No more timers remain.',
-      embeds: [],
-      components: []
-    });
-  }
-
-  await i.update({ embeds: [await buildEmbed(page)], components: [buildRow(page)] });
-}
-
+      await i.update({ embeds: [await buildEmbed(page)], components: [buildRow(page)] });
     });
 
     collector.on('end', async () => {

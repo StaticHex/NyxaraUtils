@@ -7,7 +7,8 @@ const {
   ModalBuilder,
   TextInputBuilder,
   TextInputStyle,
-  ComponentType
+  ComponentType,
+  PermissionsBitField
 } = require('discord.js');
 const { ServerSettings } = require('../../utils/db');
 
@@ -37,25 +38,35 @@ module.exports = {
     ),
 
   async execute(interaction) {
-      if (!interaction.member.permissions.has('Administrator') &&
-      !interaction.member.permissions.has('ManageRoles')) {
-    return interaction.reply({
-      content: '❌ You need Administrator or Manage Roles permission to use this command.',
-      ephemeral: true
-    });
-  }
+    if (
+      !interaction.member.permissions.has(PermissionsBitField.Flags.Administrator) &&
+      !interaction.member.permissions.has(PermissionsBitField.Flags.ManageRoles)
+    ) {
+      return await interaction.reply({
+        content: '❌ You need Administrator or Manage Roles permission to use this command.',
+        ephemeral: true
+      });
+    }
+
     const guild = interaction.guild;
     const user = interaction.user;
 
-    const settings = await ServerSettings.findOne({ guildId: guild.id });
+    let settings;
+    try {
+      settings = await ServerSettings.findOne({ guildId: guild.id });
+    } catch (err) {
+      console.error(err);
+      return await interaction.reply({ content: '❌ Failed to fetch server settings.', ephemeral: true });
+    }
+
     if (!settings?.modChannelId) {
       const errorEmbed = new EmbedBuilder()
         .setTitle('⚠️ Missing Mod Channel')
         .setDescription('Please set the mod alert channel using </setmodchannel:1388580546216726542>.')
-        .setColor('Red')
+        .setColor(0xFF0000)
         .setTimestamp();
 
-      return interaction.reply({ embeds: [errorEmbed], ephemeral: true });
+      return await interaction.reply({ embeds: [errorEmbed], ephemeral: true });
     }
 
     const bindRole = interaction.options.getRole('bindrole');
@@ -83,7 +94,7 @@ module.exports = {
         `They must receive **${checkRole}** within **${timeAmount} ${timeUnit}**.\n\n` +
         `Choose the action to take **if they fail**:\n\n> Reason: \`${currentReason}\``
       )
-      .setColor('Blue');
+      .setColor(0x0000FF);
 
     const row = new ActionRowBuilder().addComponents(
       new ButtonBuilder()
@@ -111,32 +122,43 @@ module.exports = {
         .setStyle(ButtonStyle.Secondary)
     );
 
-    const reply = await interaction.reply({
-      embeds: [getEmbed()],
-      components: [row, row2],
-      fetchReply: true
-    });
+    let reply;
+    try {
+      reply = await interaction.reply({
+        embeds: [getEmbed()],
+        components: [row, row2],
+        fetchReply: true
+      });
+    } catch (err) {
+      console.error(err);
+      return;
+    }
 
     // Save config to DB
-    await ServerSettings.findOneAndUpdate(
-      { guildId: guild.id },
-      {
-        $set: {
-          autoAction: {
-            bindRoleId: bindRole.id,
-            checkRoleId: checkRole.id,
-            timeAmount,
-            timeUnit,
-            delayMs,
-            initiatedBy: user.id,
-            isActive: false,
-            reason: defaultReason,
-            createdAt: new Date()
+    try {
+      await ServerSettings.findOneAndUpdate(
+        { guildId: guild.id },
+        {
+          $set: {
+            autoAction: {
+              bindRoleId: bindRole.id,
+              checkRoleId: checkRole.id,
+              timeAmount,
+              timeUnit,
+              delayMs,
+              initiatedBy: user.id,
+              isActive: false,
+              reason: defaultReason,
+              createdAt: new Date()
+            }
           }
-        }
-      },
-      { upsert: true }
-    );
+        },
+        { upsert: true }
+      );
+    } catch (err) {
+      console.error(err);
+      return await interaction.followUp({ content: '❌ Failed to save autoaction configuration.', ephemeral: true });
+    }
 
     // 🎯 Collect button presses
     const collector = reply.createMessageComponentCollector({
@@ -146,15 +168,15 @@ module.exports = {
 
     collector.on('collect', async (btn) => {
       if (btn.user.id !== user.id)
-        return btn.reply({ content: '❌ This button is not for you.', ephemeral: true });
+        return await btn.reply({ content: '❌ This button is not for you.', ephemeral: true });
 
       // Disable buttons helper
       const disableAllButtons = () => {
         const disabledRow1 = new ActionRowBuilder().addComponents(
-          row.components.map(c => c.setDisabled(true))
+          row.components.map(c => ButtonBuilder.from(c).setDisabled(true))
         );
         const disabledRow2 = new ActionRowBuilder().addComponents(
-          row2.components.map(c => c.setDisabled(true))
+          row2.components.map(c => ButtonBuilder.from(c).setDisabled(true))
         );
         return [disabledRow1, disabledRow2];
       };
@@ -250,8 +272,19 @@ module.exports = {
       }
     });
 
-    collector.on('end', () => {
-      // Optionally you can disable buttons here after collector ends
+    collector.on('end', async () => {
+      try {
+        await reply.edit({ components: [
+          new ActionRowBuilder().addComponents(
+            row.components.map(c => ButtonBuilder.from(c).setDisabled(true))
+          ),
+          new ActionRowBuilder().addComponents(
+            row2.components.map(c => ButtonBuilder.from(c).setDisabled(true))
+          )
+        ] });
+      } catch (err) {
+        // Ignore edit errors (e.g., message deleted)
+      }
     });
   }
 };

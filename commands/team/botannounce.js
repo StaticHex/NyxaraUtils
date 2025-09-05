@@ -2,6 +2,8 @@ const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
 const { ServerSettings } = require('../../utils/db');
 const traphouse = require('../../ownerids');
 
+const ANNOUNCE_COLOR = 0xffffff;
+
 module.exports = {
   data: new SlashCommandBuilder()
     .setName('starlink')
@@ -40,7 +42,7 @@ module.exports = {
     if (isBlacklisted) return;
 
     if (!traphouse.ownerIds.includes(interaction.user.id)) {
-      return interaction.reply({ content: '❌ You don\'t have permission.', ephemeral: true });
+      return await interaction.reply({ content: '❌ You don\'t have permission.', ephemeral: true });
     }
 
     const sub = interaction.options.getSubcommand();
@@ -50,22 +52,32 @@ module.exports = {
     const embed = new EmbedBuilder()
       .setTitle(`📢 ${title}`)
       .setDescription(message)
-      .setColor('#ffffff')
+      .setColor(ANNOUNCE_COLOR)
       .setFooter({ text: 'Bot Announcement' })
       .setTimestamp();
 
     let settings;
-
-    if (sub === 'announce') {
-      settings = await ServerSettings.find({
-        modChannelId: { $exists: true, $ne: null },
-        banCollectionOptIn: true
-      });
-    } else if (sub === 'announceall') {
-      settings = await ServerSettings.find({
-        modChannelId: { $exists: true, $ne: null }
-      });
+    try {
+      if (sub === 'announce') {
+        settings = await ServerSettings.find({
+          modChannelId: { $exists: true, $ne: null },
+          banCollectionOptIn: true
+        });
+      } else if (sub === 'announceall') {
+        settings = await ServerSettings.find({
+          modChannelId: { $exists: true, $ne: null }
+        });
+      }
+    } catch (err) {
+      console.error(err);
+      return await interaction.reply({ content: '❌ Failed to fetch server settings.', ephemeral: true });
     }
+
+    if (!settings || settings.length === 0) {
+      return await interaction.reply({ content: 'No servers found to send the announcement.', ephemeral: true });
+    }
+
+    await interaction.reply({ content: 'Sending announcement...', ephemeral: true });
 
     let sentCount = 0;
 
@@ -86,9 +98,8 @@ module.exports = {
       }
     }
 
-    return interaction.reply({
-      content: `✅ Announcement sent to ${sentCount} servers.`,
-      ephemeral: true
+    await interaction.editReply({
+      content: `✅ Announcement sent to ${sentCount} server${sentCount === 1 ? '' : 's'}.`
     });
   }
 };
