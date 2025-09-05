@@ -1,4 +1,4 @@
-const { SlashCommandBuilder, EmbedBuilder } = require('discord.js');
+const { SlashCommandBuilder, EmbedBuilder, PermissionsBitField } = require('discord.js');
 const { ServerSettings } = require('../../utils/db');
 
 module.exports = {
@@ -9,18 +9,22 @@ module.exports = {
   async execute(interaction) {
     const isBlacklisted = await interaction.client.checkBlacklist(interaction);
     if (isBlacklisted) return;
-  if (!interaction.member.permissions.has('Administrator') &&
-      !interaction.member.permissions.has('ManageRoles')) {
-    return interaction.reply({
-      content: '❌ You need Administrator or Manage Roles permission to use this command.',
-      ephemeral: true
-    });
-  }
+
+    if (
+      !interaction.member.permissions.has(PermissionsBitField.Flags.Administrator) &&
+      !interaction.member.permissions.has(PermissionsBitField.Flags.ManageRoles)
+    ) {
+      return await interaction.reply({
+        content: '❌ You need Administrator or Manage Roles permission to use this command.',
+        ephemeral: true
+      });
+    }
+
     try {
       const settings = await ServerSettings.findOne({ guildId: interaction.guild.id });
 
       if (!settings) {
-        return interaction.reply({ content: '❌ No config found for this server.', ephemeral: true });
+        return await interaction.reply({ content: '❌ No config found for this server.', ephemeral: true });
       }
 
       const { autoAction, modChannelId } = settings;
@@ -33,7 +37,7 @@ module.exports = {
         !autoAction.timeUnit ||
         !autoAction.action
       ) {
-        return interaction.reply({ content: '❌ Auto-action config not fully set up for this server.', ephemeral: true });
+        return await interaction.reply({ content: '❌ Auto-action config not fully set up for this server.', ephemeral: true });
       }
 
       const bindRole = interaction.guild.roles.cache.get(autoAction.bindRoleId);
@@ -52,10 +56,10 @@ module.exports = {
         .setColor(0xff000d)
         .setTimestamp();
 
-      return interaction.reply({ embeds: [embed], ephemeral: true });
+      return await interaction.reply({ embeds: [embed], ephemeral: true });
     } catch (error) {
       console.error('Error fetching config:', error);
-      return interaction.reply({ content: '❌ Error retrieving configuration.', ephemeral: true });
+      return await interaction.reply({ content: '❌ Error retrieving configuration.', ephemeral: true });
     }
   }
 };

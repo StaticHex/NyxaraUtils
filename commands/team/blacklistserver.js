@@ -28,11 +28,12 @@ module.exports = {
     ),
 
   async execute(interaction) {
-         const isBlacklisted = await interaction.client.checkBlacklist(interaction);
+    const isBlacklisted = await interaction.client.checkBlacklist(interaction);
     if (isBlacklisted) return;
-   if (!(await isAdmin(interaction.user.id))) {
-  return interaction.reply({ content: '❌ You don\'t have permission to use this command.', ephemeral: true });
-}
+
+    if (!(await isAdmin(interaction.user.id))) {
+      return await interaction.reply({ content: '❌ You don\'t have permission to use this command.', ephemeral: true });
+    }
 
     const serverId = interaction.options.getString('serverid');
     const reason = interaction.options.getString('reason') || 'No reason provided';
@@ -40,34 +41,39 @@ module.exports = {
     const appealDate = interaction.options.getString('appealdate');
 
     if (appealDate && !/^(0[1-9]|1[0-2])\/(0[1-9]|[12][0-9]|3[01])\/\d{4}$/.test(appealDate)) {
-      return interaction.reply({ content: '❌ Invalid appeal date format. Use MM/DD/YYYY.', ephemeral: true });
+      return await interaction.reply({ content: '❌ Invalid appeal date format. Use MM/DD/YYYY.', ephemeral: true });
     }
 
-    const existing = await ServerBlacklist.findOne({ serverId });
-    if (existing) {
-      return interaction.reply({ content: `⚠️ Server is already blacklisted.`, ephemeral: true });
+    try {
+      const existing = await ServerBlacklist.findOne({ serverId });
+      if (existing) {
+        return await interaction.reply({ content: `⚠️ Server is already blacklisted.`, ephemeral: true });
+      }
+
+      await ServerBlacklist.create({
+        serverId,
+        reason,
+        blacklistedBy: interaction.user.id,
+        appealable,
+        appealDate
+      });
+
+      const embed = new EmbedBuilder()
+        .setTitle('🚫 Server Blacklisted')
+        .setColor(0xFF0000)
+        .addFields(
+          { name: 'Server ID', value: serverId },
+          { name: 'Reason', value: reason },
+          { name: 'Blacklisted By', value: `<@${interaction.user.id}>` },
+          { name: 'Appealable?', value: appealable ? 'Yes' : 'No' },
+          { name: 'Appeal Date', value: appealDate || 'N/A' }
+        )
+        .setTimestamp();
+
+      return await interaction.reply({ embeds: [embed], ephemeral: true });
+    } catch (err) {
+      console.error(err);
+      return await interaction.reply({ content: '❌ Failed to blacklist the server due to an error.', ephemeral: true });
     }
-
-    await ServerBlacklist.create({
-      serverId,
-      reason,
-      blacklistedBy: interaction.user.id,
-      appealable,
-      appealDate
-    });
-
-    const embed = new EmbedBuilder()
-      .setTitle('🚫 Server Blacklisted')
-      .setColor('Red')
-      .setFields(
-        { name: 'Server ID', value: serverId },
-        { name: 'Reason', value: reason },
-        { name: 'Blacklisted By', value: `<@${interaction.user.id}>` },
-        { name: 'Appealable?', value: appealable ? 'Yes' : 'No' },
-        { name: 'Appeal Date', value: appealDate || 'N/A' }
-      )
-      .setTimestamp();
-
-    return interaction.reply({ embeds: [embed], ephemeral: true });
   }
 };

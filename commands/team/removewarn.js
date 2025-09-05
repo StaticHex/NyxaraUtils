@@ -18,22 +18,27 @@ module.exports = {
     ),
 
   async execute(interaction) {
-if (!(await isAdmin(interaction.user.id))) {
-  return interaction.reply({ content: '❌ You don\'t have permission to use this command.', ephemeral: true });
+    if (!(await isAdmin(interaction.user.id))) {
+      return await interaction.reply({ content: '❌ You don\'t have permission to use this command.', ephemeral: true });
     }
 
     const user = interaction.options.getUser('user');
     const caseId = interaction.options.getString('caseid');
     const guildId = interaction.guild.id;
 
-    const warning = await WarnRecord.findOne({ guildId, userId: user.id, caseId });
+    try {
+      const warning = await WarnRecord.findOne({ guildId, userId: user.id, caseId });
 
-    if (!warning) {
-      return interaction.reply({ content: `⚠️ No warning found with case ID \`${caseId}\` for ${user.tag}.`, ephemeral: true });
+      if (!warning) {
+        return await interaction.reply({ content: `⚠️ No warning found with case ID \`${caseId}\` for ${user.tag}.`, ephemeral: true });
+      }
+
+      await WarnRecord.deleteOne({ _id: warning._id });
+
+      return await interaction.reply({ content: `✅ Warning \`${caseId}\` removed for ${user.tag}.`, ephemeral: true });
+    } catch (error) {
+      console.error(error);
+      return await interaction.reply({ content: '❌ Failed to remove warning due to an error.', ephemeral: true });
     }
-
-    await WarnRecord.deleteOne({ _id: warning._id });
-
-    return interaction.reply({ content: `✅ Warning \`${caseId}\` removed for ${user.tag}.`, ephemeral: true });
   }
 };

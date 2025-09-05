@@ -1,4 +1,4 @@
-const { SlashCommandBuilder } = require('discord.js');
+const { SlashCommandBuilder, PermissionsBitField } = require('discord.js');
 const TimerRole = require('../../utils/timerole_s');
 
 module.exports = {
@@ -19,16 +19,16 @@ module.exports = {
       await interaction.deferReply({ ephemeral: true });
 
       if (
-        !interaction.member.permissions.has('ManageRoles') &&
-        !interaction.member.permissions.has('Administrator')
+        !interaction.member.permissions.has(PermissionsBitField.Flags.ManageRoles) &&
+        !interaction.member.permissions.has(PermissionsBitField.Flags.Administrator)
       ) {
-        return interaction.editReply({
+        return await interaction.editReply({
           content: '❌ You need Manage Roles or Administrator permission to use this command.'
         });
       }
 
       if (!interaction.client.timerRoleManager) {
-        return interaction.editReply({
+        return await interaction.editReply({
           content: '❌ Timer system not active. Try again later.'
         });
       }
@@ -37,7 +37,7 @@ module.exports = {
       const role = interaction.options.getRole('role');
 
       if (!target || !target.roles.cache.has(role.id)) {
-        return interaction.editReply({ content: '❌ User does not have that role.' });
+        return await interaction.editReply({ content: '❌ User does not have that role.' });
       }
 
       const timer = await TimerRole.findOne({
@@ -47,7 +47,7 @@ module.exports = {
       });
 
       if (!timer) {
-        return interaction.editReply({ content: '❌ No active timer found for that role.' });
+        return await interaction.editReply({ content: '❌ No active timer found for that role.' });
       }
 
       // Remove role and cancel timer
@@ -75,13 +75,13 @@ module.exports = {
       console.error('❌ Error in /removetimerole:', err);
 
       if (interaction.deferred || interaction.replied) {
-        return interaction.followUp({
+        return await interaction.followUp({
           content: '❌ Something went wrong while removing the timed role.',
           ephemeral: true
         }).catch(() => {});
       }
 
-      return interaction.reply({
+      return await interaction.reply({
         content: '❌ Something went wrong while removing the timed role.',
         ephemeral: true
       }).catch(() => {});

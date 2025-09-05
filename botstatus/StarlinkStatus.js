@@ -2,13 +2,14 @@ const { EmbedBuilder } = require('discord.js');
 
 function createStarlinkStatusEmbed(client) {
   const now = Date.now();
-  const startedAt = now - (client.uptime || 0);
+  const uptime = typeof client.uptime === 'number' ? client.uptime : 0;
+  const startedAt = now - uptime;
   const unixTimestamp = Math.floor(startedAt / 1000);
 
   return new EmbedBuilder()
     .setTitle('Starlink - (Status)')
     .setDescription('Your pathway to optimized server daily interactions.')
-    .setColor('#ffffff')
+    .setColor(0xffffff)
     .addFields(
       {
         name: '🕒 Uptime',

@@ -1,4 +1,4 @@
-const { SlashCommandBuilder } = require('discord.js');
+const { SlashCommandBuilder, PermissionsBitField } = require('discord.js');
 const TimerRole = require('../../utils/timerole_s');
 const requireModChannel = require('../../time/reqmod');
 
@@ -42,15 +42,16 @@ module.exports = {
       const settings = await requireModChannel(interaction);
       if (!settings) return;
 
-      if (!interaction.member.permissions.has('ManageRoles') && !interaction.member.permissions.has('Administrator')) {
-        return interaction.editReply({ content: '❌ You need Manage Roles or Administrator permission to use this command.' });
+      if (
+        !interaction.member.permissions.has(PermissionsBitField.Flags.ManageRoles) &&
+        !interaction.member.permissions.has(PermissionsBitField.Flags.Administrator)
+      ) {
+        return await interaction.editReply({ content: '❌ You need Manage Roles or Administrator permission to use this command.' });
       }
 
       if (!interaction.client.timerRoleManager) {
-        return interaction.editReply({ content: '❌ Timer system not active. Try again later.' });
+        return await interaction.editReply({ content: '❌ Timer system not active. Try again later.' });
       }
-
-
 
       const guild = interaction.guild;
       const target = interaction.options.getMember('target');
@@ -58,29 +59,31 @@ module.exports = {
       const durationStr = interaction.options.getString('duration');
       const reason = interaction.options.getString('reason') || 'No reason provided';
 
-
       const delayMs = parseFlexibleDuration(durationStr);
       if (!delayMs) {
-        return interaction.editReply({ content: '❌ Invalid duration format. Use examples like 30m, 2h, 1d, 1month, etc.' });
+        return await interaction.editReply({ content: '❌ Invalid duration format. Use examples like 30m, 2h, 1d, 1month, etc.' });
       }
 
       if (!target) {
-        return interaction.editReply({ content: '❌ Target user not found.' });
+        return await interaction.editReply({ content: '❌ Target user not found.' });
       }
 
-      const roleIds = rolesInput.split(/[ ,]+/).map(r => r.replace(/[<@&>]/g, '')).filter(r => r.length > 0);
+      const roleIds = rolesInput.split(/[ ,]+/).map(r => r.replace(/[<@&>]/g, '').trim()).filter(r => r.length > 0);
       const rolesToAssign = roleIds.map(id => guild.roles.cache.get(id)).filter(role => role);
 
       if (rolesToAssign.length === 0) {
-        return interaction.editReply({ content: '❌ No valid roles found in your input.' });
+        return await interaction.editReply({ content: '❌ No valid roles found in your input.' });
       }
 
       for (const role of rolesToAssign) {
+        if (role.managed) {
+          return await interaction.editReply({ content: `❌ The role **${role.name}** is managed and cannot be assigned manually.` });
+        }
         if (interaction.member.roles.highest.position <= role.position && interaction.guild.ownerId !== interaction.user.id) {
-          return interaction.editReply({ content: `❌ You cannot assign the role **${role.name}** — it's higher or equal to your highest role.` });
+          return await interaction.editReply({ content: `❌ You cannot assign the role **${role.name}** — it's higher or equal to your highest role.` });
         }
         if (interaction.guild.members.me.roles.highest.position <= role.position) {
-          return interaction.editReply({ content: `❌ I cannot assign the role **${role.name}** — it's higher or equal to my highest role.` });
+          return await interaction.editReply({ content: `❌ I cannot assign the role **${role.name}** — it's higher or equal to my highest role.` });
         }
       }
 
@@ -90,17 +93,15 @@ module.exports = {
       for (const role of rolesToAssign) {
         try {
           await target.roles.add(role, `Timerole assigned for ${durationStr}. Reason: ${reason}`);
-         await TimerRole.create({
-          guildId: guild.id,
-         userId: target.id,
-       roleId: role.id,
-           expiresAt,
+          await TimerRole.create({
+            guildId: guild.id,
+            userId: target.id,
+            roleId: role.id,
+            expiresAt,
             reason,
-              assignerId: interaction.user.id,
-             active: true
-            });
-
-
+            assignerId: interaction.user.id,
+            active: true
+          });
 
           interaction.client.timerRoleManager.scheduleTimer(guild.id, target.id, role.id, expiresAt);
           assignedRoles.push(role.name);
@@ -110,7 +111,7 @@ module.exports = {
       }
 
       if (assignedRoles.length === 0) {
-        return interaction.editReply({ content: '❌ Failed to assign any roles. Check bot permissions.' });
+        return await interaction.editReply({ content: '❌ Failed to assign any roles. Check bot permissions.' });
       }
 
       try {
@@ -125,10 +126,10 @@ module.exports = {
       console.error('❌ Command failed:', err);
 
       if (interaction.deferred || interaction.replied) {
-        return interaction.followUp({ content: '❌ Something went wrong while assigning the timerole.', ephemeral: true }).catch(() => {});
+        return await interaction.followUp({ content: '❌ Something went wrong while assigning the timerole.', ephemeral: true }).catch(() => {});
       }
 
-      return interaction.reply({ content: '❌ Something went wrong while assigning the timerole.', ephemeral: true }).catch(() => {});
+      return await interaction.reply({ content: '❌ Something went wrong while assigning the timerole.', ephemeral: true }).catch(() => {});
     }
   }
 };

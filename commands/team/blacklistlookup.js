@@ -1,5 +1,4 @@
-
-const { SlashCommandBuilder, EmbedBuilder, ActionRowBuilder, ButtonBuilder, StringSelectMenuBuilder, ButtonStyle, ComponentType, Faces } = require('discord.js');
+const { SlashCommandBuilder, EmbedBuilder, ActionRowBuilder, ButtonBuilder, StringSelectMenuBuilder, ButtonStyle, ComponentType } = require('discord.js');
 const Blacklist = require('../../utils/blacklistmongo');
 const isAdmin = require('../../utils/isAdmin');
 
@@ -25,26 +24,31 @@ module.exports = {
 
     const userId = interaction.options.getString('user_id');
     if (userId) {
-      const row = await Blacklist.findOne({ userId });
-      if (!row) return interaction.reply({ content: `No blacklist entry found for user ID: ${userId}`, ephemeral: true });
-
-      let username = 'Unknown User';
       try {
-        const user = await interaction.client.users.fetch(userId);
-        username = user.tag;
-      } catch {}
+        const row = await Blacklist.findOne({ userId });
+        if (!row) return interaction.reply({ content: `No blacklist entry found for user ID: ${userId}`, ephemeral: true });
 
-      const embed = new EmbedBuilder()
-        .setTitle('Blacklist Information')
-        .setColor('#FF0000')
-        .addFields(
-          { name: 'Username', value: username, inline: true },
-          { name: 'User ID', value: row.userId, inline: true },
-          { name: 'Reason', value: row.reason || 'No reason provided', inline: false },
-          { name: 'Appeal Status', value: row.appealStatus || 'NO APPEAL', inline: false }
-        );
+        let username = 'Unknown User';
+        try {
+          const user = await interaction.client.users.fetch(userId);
+          username = user.tag;
+        } catch {}
 
-      return interaction.reply({ embeds: [embed] });
+        const embed = new EmbedBuilder()
+          .setTitle('Blacklist Information')
+          .setColor(0xFF0000)
+          .addFields(
+            { name: 'Username', value: username, inline: true },
+            { name: 'User ID', value: row.userId, inline: true },
+            { name: 'Reason', value: row.reason || 'No reason provided', inline: false },
+            { name: 'Appeal Status', value: row.appealStatus || 'NO APPEAL', inline: false }
+          );
+
+        return interaction.reply({ embeds: [embed], ephemeral: true });
+      } catch (err) {
+        console.error(err);
+        return interaction.reply({ content: '❌ Error fetching blacklist info.', ephemeral: true });
+      }
     }
 
     const createSelectMenu = () => new StringSelectMenuBuilder()
@@ -82,7 +86,13 @@ module.exports = {
       }
 
       if (select.values[0] === 'users') {
-        const rows = await Blacklist.find({});
+        let rows;
+        try {
+          rows = await Blacklist.find({});
+        } catch (err) {
+          console.error(err);
+          return select.update({ content: '❌ Error fetching blacklist data.', components: [] });
+        }
         if (!rows.length) return select.update({ content: 'No users are blacklisted.', components: [] });
 
         let page = 0;
@@ -101,7 +111,7 @@ module.exports = {
 
           return new EmbedBuilder()
             .setTitle(`Blacklist Entry (${page + 1}/${maxPages})`)
-            .setColor('#FF0000')
+            .setColor(0xFF0000)
             .setThumbnail(avatarURL)
             .addFields(
               { name: 'Username', value: username, inline: true },
@@ -161,8 +171,15 @@ module.exports = {
         });
 
       } else if (select.values[0] === 'servers') {
-        const ServerBlacklist = require('../../utils/blacklistserver_mongo');
-        const rows = await ServerBlacklist.find({});
+        let ServerBlacklist;
+        let rows;
+        try {
+          ServerBlacklist = require('../../utils/blacklistserver_mongo');
+          rows = await ServerBlacklist.find({});
+        } catch (err) {
+          console.error(err);
+          return select.update({ content: '❌ Error fetching server blacklist data.', components: [] });
+        }
         if (!rows.length) {
           return select.update({
             content: '✅ No blacklisted servers found.',
@@ -186,7 +203,7 @@ module.exports = {
 
           return new EmbedBuilder()
             .setTitle(`Blacklisted Server (${page + 1}/${maxPages})`)
-            .setColor('Red')
+            .setColor(0xFF0000)
             .addFields(
               { name: 'Server ID', value: row.serverId, inline: true },
               { name: 'Reason', value: row.reason || 'No reason provided', inline: true },

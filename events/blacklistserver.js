@@ -15,7 +15,7 @@ module.exports = {
     const embed = new EmbedBuilder()
       .setTitle('🚫-Blacklisted Server-🚫')
       .setColor('#ca0017')
-      .setFields(
+      .addFields(
         { name: '— Server Name', value: guild.name || 'Unknown', inline: false },
         { name: '— Reason', value: reason || 'No reason provided', inline: false },
         { name: '— Blacklisted By', value: blacklistedBy ? `<@${blacklistedBy}>` : 'Unknown', inline: true },
@@ -35,7 +35,13 @@ module.exports = {
     }
 
     let sent = false;
-    if (guild.systemChannel && guild.systemChannel.permissionsFor(guild.members.me)?.has(PermissionsBitField.Flags.SendMessages)) {
+    if (
+      guild.systemChannel &&
+      guild.systemChannel.permissionsFor(guild.members.me)?.has([
+        PermissionsBitField.Flags.SendMessages,
+        PermissionsBitField.Flags.EmbedLinks
+      ])
+    ) {
       guild.systemChannel.send({ embeds: [embed] }).then(() => sent = true).catch(() => {});
     }
 
@@ -43,7 +49,10 @@ module.exports = {
       const fallbackChannel = guild.channels.cache.find(
         c =>
           c.type === ChannelType.GuildText &&
-          c.permissionsFor(guild.members.me)?.has(PermissionsBitField.Flags.SendMessages)
+          c.permissionsFor(guild.members.me)?.has([
+            PermissionsBitField.Flags.SendMessages,
+            PermissionsBitField.Flags.EmbedLinks
+          ])
       );
       if (fallbackChannel) {
         fallbackChannel.send({ embeds: [embed] }).catch(() => {});

@@ -13,10 +13,11 @@ module.exports = {
     ),
 
   async execute(interaction) {
-     const isBlacklisted = await interaction.client.checkBlacklist(interaction);
+    const isBlacklisted = await interaction.client.checkBlacklist(interaction);
     if (isBlacklisted) return;
+
     if (interaction.user.id !== config.ownerId) {
-      return interaction.reply({ content: '❌ You don\'t have permission.', flags: 64 });
+      return await interaction.reply({ content: '❌ You don\'t have permission.', ephemeral: true });
     }
 
     const user = interaction.options.getUser('user');
@@ -25,14 +26,14 @@ module.exports = {
       const result = await Admin.findOneAndDelete({ userId: user.id });
 
       if (!result) {
-        return interaction.reply({ content: `ℹ️ ${user.tag} is not an admin.`, flags: 64 });
+        return await interaction.reply({ content: `ℹ️ ${user.tag} is not an admin.`, ephemeral: true });
       }
 
-      return interaction.reply({ content: `✅ Removed ${user.tag} from the admin list.` });
+      return await interaction.reply({ content: `✅ Removed ${user.tag} from the admin list.`, ephemeral: true });
     } catch (error) {
       console.error(error);
       if (!interaction.replied && !interaction.deferred) {
-        return interaction.reply({ content: '❌ Failed to remove admin.', flags: 64 });
+        return await interaction.reply({ content: '❌ Failed to remove admin.', ephemeral: true });
       }
     }
   }

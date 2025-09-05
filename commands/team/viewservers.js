@@ -39,7 +39,7 @@ module.exports = {
           { name: 'Member Count', value: `${guild.memberCount}`, inline: true }
         )
         .setFooter({ text: `Use the buttons to navigate or remove the bot.` })
-        .setColor('Blurple');
+        .setColor(0x5865F2); // Discord Blurple
 
       const row = new ActionRowBuilder().addComponents(
         new ButtonBuilder()
@@ -56,7 +56,7 @@ module.exports = {
 
         new ButtonBuilder()
           .setCustomId(`remove_${guild.id}`)
-          .setLabel(`Remove bot from ${guild.name}`)
+          .setLabel('Remove bot')
           .setStyle(ButtonStyle.Danger)
       );
 
@@ -64,12 +64,18 @@ module.exports = {
     };
 
     const { embed, row } = getPage(index);
-    const reply = await interaction.reply({
-      embeds: [embed],
-      components: [row],
-      ephemeral: true,
-      fetchReply: true
-    });
+    let reply;
+    try {
+      reply = await interaction.reply({
+        embeds: [embed],
+        components: [row],
+        ephemeral: true,
+        fetchReply: true
+      });
+    } catch (err) {
+      console.error(err);
+      return interaction.followUp({ content: '❌ Failed to send server list.', ephemeral: true });
+    }
 
     const collector = reply.createMessageComponentCollector({
       componentType: ComponentType.Button,
@@ -114,6 +120,7 @@ module.exports = {
     collector.on('end', async () => {
       try {
         await reply.edit({ components: [] });
+        await interaction.followUp({ content: '⏱️ Session expired.', ephemeral: true });
       } catch { }
     });
   }

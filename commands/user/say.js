@@ -21,6 +21,7 @@ module.exports = {
     const isBlacklisted = await interaction.client.checkBlacklist(interaction);
     if (isBlacklisted) return;
 
+    // Defer reply as ephemeral to hide "thinking..." in channel
     await interaction.deferReply({ ephemeral: true });
 
     const content = interaction.options.getString('content');
@@ -28,6 +29,7 @@ module.exports = {
     const anonymous = interaction.options.getBoolean('anonymous') ?? false;
     const colorInput = interaction.options.getString('color');
 
+    // Gather attachments and filter by size
     const attachments = [
       interaction.options.getAttachment('file1'),
       interaction.options.getAttachment('file2'),
@@ -43,11 +45,11 @@ module.exports = {
       const errorMessage = tooBigFiles
         .map(f => `❌ \`${f.name}\` is too big to upload.`)
         .join('\n');
-
       await interaction.editReply({ content: errorMessage, ephemeral: true });
       return;
     }
 
+    // Categorize files
     const imageFiles = validFiles.filter(a => a.contentType?.startsWith('image/'));
     const videoFiles = validFiles.filter(a => a.contentType?.startsWith('video/'));
     const otherFiles = validFiles.filter(a =>
@@ -59,10 +61,10 @@ module.exports = {
       let embedColor = Colors.Default;
       if (colorInput) {
         if (/^#?[0-9A-F]{6}$/i.test(colorInput)) {
-          embedColor = colorInput.startsWith('#') ? colorInput : `#${colorInput}`;
+          embedColor = parseInt(colorInput.replace('#', ''), 16);
         } else {
           const discordColor = Colors[colorInput.toUpperCase()];
-          embedColor = discordColor || embedColor;
+          embedColor = discordColor || Colors.Default;
         }
       }
 
@@ -78,8 +80,12 @@ module.exports = {
         });
       }
 
+      // Only set the first image as embed image, do NOT attach it as a file to avoid duplicate
+      let filesToSend = [...otherFiles, ...videoFiles];
       if (imageFiles.length > 0) {
         embed.setImage(imageFiles[0].url);
+        // Attach any additional images as files
+        filesToSend = filesToSend.concat(imageFiles.slice(1).map(f => f.url));
       }
 
       const fileLinks = otherFiles.concat(videoFiles).map(f => `[${f.name}](${f.url})`);
@@ -89,14 +95,9 @@ module.exports = {
 
       await interaction.channel.send({
         embeds: [embed],
-        files: [...otherFiles, ...videoFiles] 
+        files: filesToSend
       });
 
-      if (imageFiles.length > 1) {
-        await interaction.channel.send({
-          files: imageFiles.slice(1).map(f => f.url)
-        });
-      }
     } else {
       const formatted = anonymous
         ? content
@@ -108,7 +109,7 @@ module.exports = {
       });
     }
 
-    await interaction.editReply({ content: '✅ Message sent.', ephemeral: true });
-    setTimeout(() => interaction.deleteReply().catch(() => {}), 1002);
+    // Delete the ephemeral reply as soon as possible for stealth
+    await interaction.deleteReply().catch(() => {});
   }
 };

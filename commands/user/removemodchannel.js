@@ -1,4 +1,4 @@
-const { SlashCommandBuilder } = require('discord.js');
+const { SlashCommandBuilder, PermissionsBitField } = require('discord.js');
 const { ServerSettings } = require('../../utils/db');
 
 module.exports = {
@@ -10,9 +10,11 @@ module.exports = {
     const isBlacklisted = await interaction.client.checkBlacklist(interaction);
     if (isBlacklisted) return;
 
-    if (!interaction.member.permissions.has('Administrator') &&
-        !interaction.member.permissions.has('ManageRoles')) {
-      return interaction.reply({
+    if (
+      !interaction.member.permissions.has(PermissionsBitField.Flags.Administrator) &&
+      !interaction.member.permissions.has(PermissionsBitField.Flags.ManageRoles)
+    ) {
+      return await interaction.reply({
         content: '❌ You need Administrator or Manage Roles permission to use this command.',
         ephemeral: true
       });
@@ -24,26 +26,30 @@ module.exports = {
       const settings = await ServerSettings.findOne({ guildId });
 
       if (!settings || !settings.modChannelId) {
-        return interaction.reply({
+        return await interaction.reply({
           content: '⚠️ There is no mod channel set for this server.',
           ephemeral: true
         });
       }
 
-      settings.modChannelId = undefined;
-      await settings.save();
+      await ServerSettings.findOneAndUpdate(
+        { guildId },
+        { $unset: { modChannelId: "" } }
+      );
 
-      await interaction.reply({
+      return await interaction.reply({
         content: '✅ Mod alert channel has been removed.',
         ephemeral: true
       });
 
     } catch (err) {
       console.error(err);
-      await interaction.reply({
-        content: '❌ Failed to remove the mod channel.',
-        ephemeral: true
-      });
+      if (!interaction.replied && !interaction.deferred) {
+        return await interaction.reply({
+          content: '❌ Failed to remove the mod channel.',
+          ephemeral: true
+        });
+      }
     }
   },
 };
